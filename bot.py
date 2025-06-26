@@ -35,30 +35,62 @@ async def check_subscriptions(user_id: int) -> bool:
 from db_kino import add_user
 
 from users_db import  register_user
+
+
 @dp.message(Command("start"))
 async def start_handler(message: Message, state: FSMContext):
+    full_name = message.from_user.full_name
     register_user(message.from_user.id)  # ✅ Foydalanuvchini saqlash
     add_user(message.from_user.id)
+
     if not await check_subscriptions(message.from_user.id):
         channels = await get_channels()
-        return await message.answer("Obuna bo'lish shart!", reply_markup=get_subscribe_keyboard(channels))
-    await message.answer("🎉 Botga xush kelibsiz!")
+        return await message.answer(
+            f"👋 Salom, <b>{full_name}</b>!\n\n"
+            "🔒 Botdan to‘liq foydalanish uchun quyidagi kanallarga obuna bo‘ling:",
+            reply_markup=get_subscribe_keyboard(channels),
+            parse_mode="HTML"
+        )
+
+    await message.answer(
+        f"🎉 Xush kelibsiz, <b>{full_name}</b>!\n\n"
+        "Bu bot orqali siz kinolarni maxsus kod orqali topishingiz mumkin.\n"
+        "Kodni yuboring va kerakli kinoni ko‘ring!",
+        parse_mode="HTML"
+    )
+
 
 @dp.callback_query(F.data == "check_subscription")
 async def check_subscription_callback(callback: CallbackQuery):
     user_id = callback.from_user.id
+    full_name = callback.from_user.full_name
+
     if await check_subscriptions(user_id):
-        await callback.message.answer("✅ Obuna tasdiqlandi!")
+        await callback.message.answer(
+            f"✅ Rahmat, <b>{full_name}</b>! Siz barcha kanallarga obuna bo‘lgansiz.",
+            parse_mode="HTML"
+        )
     else:
         channels = await get_channels()
-        await callback.message.answer("❌ Hali ham obuna yo'q!", reply_markup=get_subscribe_keyboard(channels))
+        await callback.message.answer(
+            "❌ Afsuski, siz hali ham barcha kanallarga obuna bo‘lmadingiz.\n"
+            "Iltimos, quyidagi havolalar orqali obuna bo‘ling:",
+            reply_markup=get_subscribe_keyboard(channels)
+        )
     await callback.answer()
+
 
 @dp.message(Command("admin"))
 async def admin_panel(message: Message):
     if not is_admin(message.from_user.id):
-        return await message.answer("❌ Siz admin emassiz!")
-    await message.answer("👨‍💻 Admin panel:", reply_markup=admin_panel_keyboard())
+        return await message.answer("🚫 Sizda admin panelga kirish huquqi yo‘q.")
+
+    await message.answer(
+        "👨‍💻 <b>Admin paneliga xush kelibsiz!</b>\nQuyidagilardan birini tanlang:",
+        reply_markup=admin_panel_keyboard(),
+        parse_mode="HTML"
+    )
+
 
 @dp.callback_query(F.data == "kino_panel")
 async def kino_panel(callback: CallbackQuery):
@@ -80,14 +112,16 @@ async def show_stats(callback: CallbackQuery):
     total = get_total_users()
     last_24h = get_new_users_in_last_24h()
     active = get_active_users_in_last_7d()
+
     text = (
-        "📊 Statistika:\n"
-        f"• Umumiy: <b>{total}</b>\n"
-        f"• Oxirgi 24 soat: <b>{last_24h}</b>\n"
-        f"• Aktiv (7 kun): <b>{active}</b>"
+        "📊 <b>Foydalanuvchilar statistikasi:</b>\n"
+        f"• Umumiy foydalanuvchilar: <b>{total}</b>\n"
+        f"• Oxirgi 24 soatda qo‘shilganlar: <b>{last_24h}</b>\n"
+        f"• So‘nggi 7 kun ichida aktivlar: <b>{active}</b>"
     )
     await callback.message.answer(text, parse_mode="HTML")
     await callback.answer()
+
 
 @dp.callback_query(F.data == "send_broadcast")
 async def send_broadcast(callback: CallbackQuery, state: FSMContext):
@@ -306,19 +340,26 @@ async def edit_link(message: Message, state: FSMContext):
 @dp.message(F.text.regexp(r"^\d+$"))
 async def handle_code(message: Message, state: FSMContext):
     current_state = await state.get_state()
-    print(f"handle_code: STATE={current_state}, TEXT={message.text}")
     if current_state:
         return
+
     if not await check_subscriptions(message.from_user.id):
         channels = await get_channels()
-        return await message.answer("❗ Koddan foydalanish uchun obuna bo'lish shart!", reply_markup=get_subscribe_keyboard(channels))
+        return await message.answer(
+            "📛 Koddan foydalanish uchun avval kanallarga obuna bo‘ling!",
+            reply_markup=get_subscribe_keyboard(channels)
+        )
 
     for code, caption, info, link in read_db():
         if int(message.text) == code:
-            return await message.answer_video(video=link, caption=f"🎬 {caption}\n{info}")
+            return await message.answer_video(
+                video=link,
+                caption=f"🎬 <b>{caption}</b>\n\n{info}",
+                parse_mode="HTML"
+            )
 
-    await message.answer("❌ Bunday kod mavjud emas.")
-    print("📥 Kod tekshiruvchi handler ishladi:", message.text)
+    await message.answer("❌ Kechirasiz, bu kodga mos kino topilmadi.")
+
 from users_db import init_users_db
 
 # === Main ===
