@@ -1,4 +1,4 @@
-BOT_TOKEN = "7258621004:AAGh_ZEb0avw5InvFv1Lr4TgBTD4seQulCA"
-ADMIN_ID = 6678521239  # asosiy admin uchun
-ADMIN_IDS = [6678521239]  # ro‘yxat shaklida ishlatiladi
+BOT_TOKEN = "8038017119:AAFDQpYw3RFmVkhjqPtSm0zAnllnOsMy23o"
+ADMIN_ID = 868057816  # asosiy admin uchun
+ADMIN_IDS = [868057816, 6678521239]  # ro‘yxat shaklida ishlatiladi
   # Barcha adminlar ID sini shu yerga yozing
