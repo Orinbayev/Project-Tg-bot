@@ -3,12 +3,17 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 def get_subscribe_keyboard(channels):
     keyboard = []
-    for channel_id, username in channels:
+    for index, (channel_id, username) in enumerate(channels, start=1):
         if username != "unknown":
             keyboard.append([
-                InlineKeyboardButton(text="Subscribe", url=f"https://t.me/{username}")
+                InlineKeyboardButton(
+                    text=f"📢 {index}-kanalga obuna bo‘ling",
+                    url=f"https://t.me/{username}"
+                )
             ])
-    keyboard.append([InlineKeyboardButton(text="✅ Check", callback_data="check_subscription")])
+    keyboard.append([
+        InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_subscription")
+    ])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def admin_panel_keyboard():
