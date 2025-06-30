@@ -82,3 +82,14 @@
 2025-06-30 18:51:54,722 - INFO - Start polling
 2025-06-30 18:51:55,045 - INFO - Run polling for bot @kinolarolamibot_Robot id=8197927758 - 'Kino bot'
 2025-06-30 18:51:55,736 - INFO - Update id=200587716 is handled. Duration 562 ms by bot id=8197927758
+2025-06-30 19:01:44,866 - INFO - Start polling
+2025-06-30 19:01:48,885 - INFO - Run polling for bot @SizxoxlaganFilmlar_BOT id=8038017119 - 'Siz Xoxlagan Filmlar\U0001f39e\ufe0f'
+2025-06-30 19:02:11,959 - INFO - Update id=160978687 is handled. Duration 683 ms by bot id=8038017119
+2025-06-30 19:02:26,224 - INFO - Update id=160978688 is handled. Duration 391 ms by bot id=8038017119
+2025-06-30 19:02:31,958 - INFO - Update id=160978689 is not handled. Duration 8 ms by bot id=8038017119
+2025-06-30 19:02:34,477 - INFO - Update id=160978690 is handled. Duration 1408 ms by bot id=8038017119
+2025-06-30 19:02:37,313 - INFO - Update id=160978691 is not handled. Duration 8 ms by bot id=8038017119
+2025-06-30 19:02:39,910 - INFO - Update id=160978692 is handled. Duration 942 ms by bot id=8038017119
+2025-06-30 19:02:56,016 - INFO - Update id=160978693 is handled. Duration 402 ms by bot id=8038017119
+2025-06-30 19:04:11,852 - INFO - Polling stopped
+2025-06-30 19:04:12,114 - INFO - Polling stopped for bot @SizxoxlaganFilmlar_BOT id=8038017119 - 'Siz Xoxlagan Filmlar\U0001f39e\ufe0f'
