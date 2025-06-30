@@ -3,39 +3,42 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 def get_subscribe_keyboard(channels):
     keyboard = []
-    for index, (channel_id, username) in enumerate(channels, start=1):
-        if username != "unknown":
-            keyboard.append([
-                InlineKeyboardButton(
-                    text=f"📢 {index}-kanalga obuna bo‘ling",
-                    url=f"https://t.me/{username}"
-                )
-            ])
-    keyboard.append([
-        InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_subscription")
-    ])
+    for index, (channel_id, username, invite_link) in enumerate(channels, start=1):
+        # Public kanal uchun
+        if username and username != "private":
+            url = f"https://t.me/{username}"
+            text = f"{index}-kanalga obuna bo‘ling"
+        # Private kanal uchun
+        elif invite_link:
+            url = invite_link
+            text = f"{index}-kanalga obuna bo‘ling"
+        else:
+            url = ""
+            text = f"{index}-kanal (ID: {channel_id})"
+        if url:
+            keyboard.append([InlineKeyboardButton(text=text, url=url)])
+    keyboard.append([InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_subscription")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def admin_panel_keyboard():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="\U0001F4FA Kino Paneli", callback_data="kino_panel")],
-        [InlineKeyboardButton(text="\U0001F4E1 Kanal Paneli", callback_data="kanal_panel")],
-        [InlineKeyboardButton(text="\U0001F4CA Statistika", callback_data="stats")],
-        [InlineKeyboardButton(text="\U0001F4E2 Xabar yuborish", callback_data="send_broadcast")],
-        # [InlineKeyboardButton(text="👮‍♂️ Adminlar boshqaruvi", callback_data="admin_manage")],
-    ])
+    keyboard = [
+        [InlineKeyboardButton(text="🎬 Kino paneli", callback_data="kino_panel")],
+        [InlineKeyboardButton(text="📡 Kanal paneli", callback_data="kanal_panel")],
+        [InlineKeyboardButton(text="📊 Statistika", callback_data="stats")],
+        [InlineKeyboardButton(text="📤 Xabar yuborish", callback_data="send_broadcast")],
+        [InlineKeyboardButton(text="📄 Kodlar ro'yxati", callback_data="list_codes")],
+        [InlineKeyboardButton(text="👮‍♂️ Admin boshqaruvi", callback_data="admin_manage")],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-
-def admin_manage_keyboard():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Admin qo‘shish", callback_data="add_admin_btn")],
-        [InlineKeyboardButton(text="➖ Admin o‘chirish", callback_data="remove_admin_btn")],
-        [InlineKeyboardButton(text="📋 Adminlar ro‘yxati", callback_data="list_admins_btn")],
+def admin_manage_keyboard(is_superadmin=False):
+    keyboard = [
+        [InlineKeyboardButton(text="➕ Admin qo'shish", callback_data="add_admin")],
+        [InlineKeyboardButton(text="🗑 Admin o'chirish", callback_data="remove_admin")],
+        [InlineKeyboardButton(text="📋 Adminlar ro'yxati", callback_data="list_admins")],
         [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back_admin")],
-    ])
-
-
-
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def kino_panel_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
