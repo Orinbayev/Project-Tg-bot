@@ -58,3 +58,4 @@ def get_all_user_ids():
         c = conn.cursor()
         c.execute("SELECT user_id FROM users")
         return [row[0] for row in c.fetchall()]
+

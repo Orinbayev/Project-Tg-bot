@@ -1,39 +1,89 @@
 import asyncio
+import logging
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.filters import Command
+
+# Configuration and database imports
 from config import BOT_TOKEN, ADMIN_IDS, SUPER_ADMIN_ID
 from db import init_db, get_channels, add_channel, remove_channel
 from db_kino import init_kino_db, add_movie, read_db, delete_movie, update_movie, get_all_users, init_users_table
-from users_db import get_total_users, get_new_users_in_last_24h, get_active_users_in_last_7d
-from states import AddMediaState
+from users_db import get_total_users, get_new_users_in_last_24h, get_active_users_in_last_7d, init_users_db, register_user, get_all_user_ids
+from db_admins import init_admin_db, add_admin, is_admin, remove_admin, get_all_admins
+
+# State and keyboard imports
+from states import AddMediaState, AdminStates
 from keyboards import (
     admin_panel_keyboard, kino_panel_keyboard, kanal_panel_keyboard,
     confirm_keyboard, broadcast_confirm_keyboard, get_subscribe_keyboard,
     admin_manage_keyboard
 )
-from states import AdminStates
-from db_admins import init_admin_db, add_admin, is_admin, remove_admin, get_all_admins
 
+# Join request handler import
+from handlers.join_requests import join_router, user_join_requests
+
+# Initialize bot and dispatcher
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
+# Include routers
+dp.include_router(join_router)
+
 # === Subscription check ===
-async def check_subscriptions(user_id: int) -> bool:
+async def check_subscriptions(user_id: int, bot: Bot) -> bool:
     channels = await get_channels()
+
     for channel_id, _, _ in channels:
         try:
-            member = await bot.get_chat_member(int(channel_id), user_id)
-            if member.status not in ("member", "administrator", "creator"):
-                return False
+            member = await bot.get_chat_member(chat_id=channel_id, user_id=user_id)
+            if member.status not in ["member", "administrator", "creator"]:
+                # ⚠️ Agar kanalga zayafka yuborgan bo‘lsa, ruxsat beramiz
+                if str(channel_id) not in user_join_requests.get(user_id, set()):
+                    return False
         except:
-            return False
+            # ⚠️ Agar hatolik bo‘lsa (bot kanal admini emas), tekshirishga zayafka asosida ruxsat beramiz
+            if str(channel_id) not in user_join_requests.get(user_id, set()):
+                return False
+
     return True
 
-from db_kino import add_user
-from users_db import register_user
+# === Command Handlers ===
+@dp.message(Command("start"))
+async def start_handler(message: Message, state: FSMContext):
+    if not message.from_user:
+        return await message.answer("❌ Foydalanuvchi aniqlanmadi. Iltimos, qayta urinib ko‘ring.")
+    full_name = message.from_user.full_name or "Foydalanuvchi"
+
+    register_user(message.from_user.id)
+
+    if not await check_subscriptions(message.from_user.id, bot):
+        channels = await get_channels()
+        return await message.answer(
+            f"👋 Salom, <b>{full_name}</b>!\n\n"
+            "🔒 Botdan to‘liq foydalanish uchun quyidagi kanallarga obuna bo‘ling:",
+            reply_markup=get_subscribe_keyboard(channels),
+            parse_mode="HTML"
+        )
+
+    await message.answer(
+        f"🎉 Xush kelibsiz, <b>{full_name}</b>!\n\n"
+        "Bu bot orqali siz kinolarni maxsus kod orqali topishingiz mumkin.\n"
+        "Kodni yuboring va kerakli kinoni ko‘ring!",
+        parse_mode="HTML"
+    )
+
+
+@dp.message(Command("admin"))
+async def admin_panel(message: Message):
+    if not is_admin(message.from_user.id):
+        return await message.answer("🚫 Sizda admin panelga kirish huquqi yo‘q.")
+    await message.answer(
+        "👨‍💻 <b>Admin paneliga xush kelibsiz!</b>\nQuyidagilardan birini tanlang:",
+        reply_markup=admin_panel_keyboard(),
+        parse_mode="HTML"
+    )
 
 # === FSM Message Handlers ===
 @dp.message(AdminStates.waiting_for_broadcast)
@@ -50,7 +100,7 @@ async def add_channel_username(message: Message, state: FSMContext):
             cid = chat.id
             uname = chat.username or "private"
             await add_channel(str(cid), uname, "")
-            await message.answer(f"✅ Kanal qo'shildi: @{uname} — `{cid}`", parse_mode="Markdown")
+            await message.answer(f"✅ Kanal qo'shildi: @{uname} — {cid}", parse_mode="Markdown")
             await state.clear()
         elif text.lstrip("-").isdigit():
             await state.update_data(cid=text)
@@ -70,13 +120,13 @@ async def add_channel_invite_link(message: Message, state: FSMContext):
     if not (invite_link.startswith("https://t.me/+") or invite_link.startswith("t.me/+")):
         return await message.answer("❌ Noto'g'ri format! Invite link yuboring (masalan: https://t.me/+xxxx).")
     await add_channel(str(cid), "private", invite_link)
-    await message.answer(f"✅ Private kanal qo'shildi: {invite_link} — `{cid}`", parse_mode="Markdown")
+    await message.answer(f"✅ Private kanal qo'shildi: {invite_link} — {cid}", parse_mode="Markdown")
     await state.clear()
 
 @dp.message(AdminStates.waiting_for_channel_id_to_remove)
 async def remove_channel_id(message: Message, state: FSMContext):
     await remove_channel(message.text)
-    await message.answer(f"❌ Kanal `{message.text}` o'chirildi.", parse_mode="Markdown")
+    await message.answer(f"❌ Kanal {message.text} o'chirildi.", parse_mode="Markdown")
     await state.clear()
 
 @dp.message(AddMediaState.waiting_for_link)
@@ -175,55 +225,27 @@ async def add_new_admin(message: Message, state: FSMContext):
 @dp.message(AdminStates.waiting_for_remove_admin_id)
 async def remove_admin_id(message: Message, state: FSMContext):
     try:
-        remove_admin(int(message.text))
-        await message.answer(f"❌ Admin o'chirildi: <code>{message.text}</code>", parse_mode="HTML")
+        user_id = int(message.text)
+        if user_id == SUPER_ADMIN_ID:
+            await message.answer("❌ Super adminni o‘chirish mumkin emas!")
+            return await state.clear()
+
+        removed = remove_admin(user_id)
+        if removed:
+            await message.answer(f"❌ Admin o'chirildi: <code>{user_id}</code>", parse_mode="HTML")
+        else:
+            await message.answer("❌ Bunday admin topilmadi!")
     except Exception as e:
         await message.answer(f"❌ Xatolik: {e}")
     await state.clear()
 
-# === Command Handlers ===
-@dp.message(Command("start"))
-async def start_handler(message: Message, state: FSMContext):
-    if not message.from_user:
-        return await message.answer("❌ Foydalanuvchi aniqlanmadi. Iltimos, qayta urinib ko‘ring.")
-    full_name = message.from_user.full_name or "Foydalanuvchi"
-
-    if not await check_subscriptions(message.from_user.id):
-        channels = await get_channels()
-        return await message.answer(
-            f"👋 Salom, <b>{full_name}</b>!\n\n"
-            "🔒 Botdan to‘liq foydalanish uchun quyidagi kanallarga obuna bo‘ling:",
-            reply_markup=get_subscribe_keyboard(channels),
-            parse_mode="HTML"
-        )
-
-    await message.answer(
-        f"🎉 Xush kelibsiz, <b>{full_name}</b>!\n\n"
-        "Bu bot orqali siz kinolarni maxsus kod orqali topishingiz mumkin.\n"
-        "Kodni yuboring va kerakli kinoni ko‘ring!",
-        parse_mode="HTML"
-    )
-
-@dp.message(Command("admin"))
-async def admin_panel(message: Message):
-    if not is_admin(message.from_user.id):
-        return await message.answer("🚫 Sizda admin panelga kirish huquqi yo‘q.")
-    await message.answer(
-        "👨‍💻 <b>Admin paneliga xush kelibsiz!</b>\nQuyidagilardan birini tanlang:",
-        reply_markup=admin_panel_keyboard(),
-        parse_mode="HTML"
-    )
-
+# === Callback Query Handlers ===
 @dp.message(F.text.regexp(r"^\d+$"))
 async def handle_code(message: Message, state: FSMContext):
-    current_state = await state.get_state()
-    if current_state:
-        return
-
-    if not await check_subscriptions(message.from_user.id):
+    if not await check_subscriptions(message.from_user.id, bot):
         channels = await get_channels()
         return await message.answer(
-            "📛 Koddan foydalanish uchun avval kanallarga obuna bo'ling!",
+            "📛 Koddan foydalanish uchun avval kanallarga obuna bo‘ling!",
             reply_markup=get_subscribe_keyboard(channels)
         )
 
@@ -237,21 +259,17 @@ async def handle_code(message: Message, state: FSMContext):
 
     await message.answer("❌ Kechirasiz, bu kodga mos kino topilmadi.")
 
-# === Callback Query Handlers ===
 @dp.callback_query(F.data == "check_subscription")
 async def check_subscription_callback(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    full_name = callback.from_user.full_name
-
-    if await check_subscriptions(user_id):
+    if await check_subscriptions(callback.from_user.id, bot):
         await callback.message.answer(
-            f"✅ Rahmat, <b>{full_name}</b>! Siz barcha kanallarga obuna bo‘lgansiz.",
+            f"✅ Rahmat, {callback.from_user.full_name}! Botdan foydalanishingiz mumkin.",
             parse_mode="HTML"
         )
     else:
         channels = await get_channels()
         await callback.message.answer(
-            "❌ Afsuski, siz hali ham barcha kanallarga obuna bo‘lmadingiz.\n"
+            "❌ Hali ham barcha kanallarga obuna bo‘lmadingiz.\n"
             "Iltimos, quyidagi havolalar orqali obuna bo‘ling:",
             reply_markup=get_subscribe_keyboard(channels)
         )
@@ -287,11 +305,13 @@ async def back_admin(callback: CallbackQuery):
 @dp.callback_query(F.data == "list_admins")
 async def list_admins(callback: CallbackQuery):
     admins = get_all_admins()
-    if not admins:
-        await callback.message.answer("❌ Hozircha adminlar yo‘q.")
+    visible_admins = [aid for aid in admins if aid != SUPER_ADMIN_ID]
+
+    if not visible_admins:
+        await callback.message.answer("❌ Super admin tashqari boshqa adminlar yo‘q.")
     else:
         text = "👮‍♂️ <b>Adminlar ro‘yxati:</b>\n"
-        for admin_id in admins:
+        for admin_id in visible_admins:
             text += f"• <code>{admin_id}</code>\n"
         await callback.message.answer(text, parse_mode="HTML")
     await callback.answer()
@@ -321,7 +341,7 @@ async def send_broadcast(callback: CallbackQuery, state: FSMContext):
 async def do_broadcast(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     original = data['broadcast_msg']
-    users = get_all_users()
+    users = get_all_user_ids()
     sent = 0
     for uid in users:
         try:
@@ -347,6 +367,7 @@ async def do_broadcast(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(f"✅ {sent} ta foydalanuvchiga yuborildi.")
     await state.clear()
     await callback.answer()
+
 
 @dp.callback_query(F.data == "broadcast_cancel")
 async def cancel_broadcast(callback: CallbackQuery, state: FSMContext):
@@ -448,8 +469,6 @@ async def ask_remove_admin_id(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 # === Main ===
-from users_db import init_users_db
-
 async def main():
     print("🚀 Bot ishga tushdi")
     await init_db()
@@ -463,8 +482,7 @@ async def main():
     print("✅ Bot polling boshlandi")
     await dp.start_polling(bot)
 
-import logging
-
+# === Logging Configuration ===
 logging.basicConfig(
     level=logging.INFO,
     filename='logs.txt',
